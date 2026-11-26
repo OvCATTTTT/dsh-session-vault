@@ -43,6 +43,113 @@ node --test "test/*.test.js"     # 全绿才算完
 - tab 组件里不许用 hooks（它们是被当普通函数调用的）
 - 工厂函数必须 `return { inject, apply }`，不能用 `exports.x =`
 
+## 三之二、每个版本必须提交 git
+
+**一个版本 = 一个提交。** 不要把几个版本攒成一个提交。
+
+### 为什么单独列一条
+
+0.3.0 到 0.4.18 十几个版本**一条提交记录都没有** —— 全部被裹进 11-26 那次
+「开源发布准备」的初始快照里。那十几个版本改了什么、为什么改，git 里查不到，
+只能翻 CHANGELOG。0.5.1 / 0.5.2 / 0.5.3 也挤在同一个提交里。
+
+根因不是「忘了」，是上面这份检查清单里**压根没写 git 这一步**。所以补上。
+
+### git 在哪
+
+这台机器上 git 是**便携版 MinGit，不在 PATH 里**，`where git` 找不到。
+它放在本仓库的**同级目录** `.tools/mingit/` 下：
+
+```
+<仓库所在目录的父级>\.tools\mingit\cmd\git.exe
+```
+
+具体路径按你的机器实际位置填。每次都写全路径，或者先 `$git = "..."` 存起来。
+
+### 提交流程
+
+```powershell
+$git = "<你的 minGit 路径>\cmd\git.exe"
+cd dsh-session-vault
+& $git add -A
+& $git status --short          # 确认没把 *.tgz / tmp/ 加进去
+& $git commit -F <说明文件>     # 用 -F 而不是 -m，避免 PowerShell 转义踩坑
+```
+
+### 提交说明写什么
+
+和 CHANGELOG 同源，但**短一些**：这一版改了什么、为什么改；修 bug 写根因。
+标题格式 `feat:` / `fix:` / `docs:` / `test:` + 一句话 + `(版本号)`。
+
+### 提交前必须自查三件事
+
+1. **`.tgz` 和 `tmp/` 没被加进去** —— 它们在 `.gitignore` 里，但 `add -A` 之后
+   还是要看一眼 `git status`
+2. **提交说明里没有本机绝对路径** —— 曾经把开发机的绝对路径和真实用户名写进
+   公开仓库的 commit message，后来只能重写历史强推
+3. **没有 token / 密钥** —— GitHub token 曾经在命令里明文出现过
+
+### 推送
+
+默认**不推**。仓库是公开的，推送等于发布。想推之前先问，
+而且要先处理与远程的分叉（`git log HEAD..origin/main` 看远程有没有新提交）。
+
+#### GitHub 直连会被掐断，必须走代理
+
+这台机器上 **GitHub 直连不通**，表现很有迷惑性：
+
+| 检查 | 结果 |
+|---|---|
+| 百度 / DeepSeek | ✅ 通（说明没断网） |
+| DNS 解析 github.com | ✅ 有结果 |
+| TCP 443 握手 | ✅ 通 |
+| HTTPS 请求 | ❌ `Connection was reset`，连接耗时 0 |
+
+TCP 能连、TLS 被重置 —— 这是 TLS 层干扰，不是网络故障。
+本机有 Clash 在 **7890** 端口跑着，git 默认不走它，所以必须显式加代理：
+
+```powershell
+$proxy = "http://127.0.0.1:7890"
+& $git -c http.proxy=$proxy fetch <url>
+& $git -c http.proxy=$proxy push  <url> main:main
+& $git -c http.proxy=$proxy ls-remote <url> HEAD
+```
+
+**用 `-c` 临时传，不要写进 git config** —— 别把这个仓库的代理设置带到其他项目。
+
+排查顺序（下次又连不上时按这个走）：
+1. `curl -sI https://www.baidu.com` 通不通 → 排除整体断网
+2. `Resolve-DnsName github.com` 有没有结果 → 排除 DNS
+3. 前面都正常但 HTTPS 失败 → 就是 TLS 被干扰，走代理
+4. 代理端口用 `Get-NetTCPConnection -LocalPort 7890 -State Listen` 确认在监听
+
+### 发 Release
+
+README 里的下载链接指向 `releases/latest`，所以**推完代码还要发 release**，
+否则用户点进去下到的是上一个版本。
+
+三步（`gh` 没装，全走 API + curl，同样要带代理）：
+
+```powershell
+# 1. 打 tag 并推上去
+& $git tag -a v0.6.3 -m "v0.6.3"
+& $git -c http.proxy=$proxy push <url> v0.6.3
+
+# 2. 建 release（拿返回里的 upload_url）
+curl -s --proxy $proxy -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/json" `
+  -d '{"tag_name":"v0.6.3","name":"v0.6.3","body":"..."}' `
+  https://api.github.com/repos/<owner>/<repo>/releases
+
+# 3. 上传 .tgz 资产（upload_url 要把 {?name,label} 去掉）
+curl -s --proxy $proxy -H "Authorization: Bearer $token" `
+  -H "Content-Type: application/octet-stream" `
+  --data-binary "@dsh-session-vault-0.6.3.tgz" `
+  "<upload_url>?name=dsh-session-vault-0.6.3.tgz"
+```
+
+**发完必须验证匿名下载**（不带 token）：302 → 200、大小和 SHA256 和本地一致。
+
 ## 四、打包安装（有坑）
 
 **不要** `dsh plugin add <本地目录>` —— 会建 pnpm `link:` 依赖，之后 `remove` 会把源目录删掉。

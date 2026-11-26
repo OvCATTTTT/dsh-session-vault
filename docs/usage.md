@@ -367,6 +367,9 @@ surfcore 把记忆存在 ~/.dsh/surfcore/characters/<角色>/memory/，分两份
 **感觉不算数。** 仓库里有一份人工标注的基准（17 条真实查询，逐条判过相关性）：
 
 ```bash
+# 路径要用环境变量给（源码里不写死任何人的目录）
+export VAULT_DATA_DIR="<你的记忆库目录>"
+export DSH_HOME="<你的 ~/.dsh 目录>"      # 可选，默认 ~/.dsh
 node scripts/eval-recall.mjs --verbose
 ```
 

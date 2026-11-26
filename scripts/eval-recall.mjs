@@ -27,8 +27,19 @@ for (const s of baseline.sample) {
   for (const h of s.hits) label.set(`${s.query}\u0000${h.id}`, h);
 }
 
-const dataDir = process.env.VAULT_DATA_DIR || 'D:\\DSH_vault\\session-vault';
-const dshHome = process.env.DSH_HOME || 'C:\\Users\\lenovo\\.dsh';
+// 路径必须由环境变量给，不写默认值 —— 这个仓库是公开的，
+// 源码里不该出现任何人的本机目录结构。
+const dataDir = process.env.VAULT_DATA_DIR;
+const dshHome = process.env.DSH_HOME || join(process.env.USERPROFILE || process.env.HOME || '', '.dsh');
+if (!dataDir) {
+  console.error(
+    '需要环境变量 VAULT_DATA_DIR 指向记忆库目录，例如：\n'
+    + '  $env:VAULT_DATA_DIR = "<你的记忆库目录>"\n'
+    + '  $env:DSH_HOME = "<你的 ~/.dsh 目录>"   # 可选，默认 %USERPROFILE%\\.dsh\n'
+    + '  node scripts/eval-recall.mjs',
+  );
+  process.exit(1);
+}
 const vault = new SessionVault({
   dataDir,
   sessionsRoot: join(dshHome, 'sessions'),

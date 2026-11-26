@@ -261,7 +261,7 @@ const PAGES = {
     openId: 19, onToggleWhy: noop,
   })),
   'ops.html': toHtml(tabs.OpsTab({
-    data: { dataDir: 'D:\\DSH_vault\\session-vault' },
+    data: { dataDir: 'D:\\example\\session-vault' },
     busy: false,
     ops: '',
     onMigrate: noop, onRebuild: noop, onExport: noop, onPurge: noop,
