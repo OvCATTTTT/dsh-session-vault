@@ -17,6 +17,9 @@
 - **`asar-dump.js` / `asar-grep.js` 不再硬编码本机的 `app.asar` 绝对路径**：改用 `DSH_ASAR` 环境变量指定路径，别人 clone 下来也能用。
 - **`.gitignore` 原来是 GBK 编码**（全项目唯一一个非 UTF-8 文件），已转成 UTF-8；同时把 `VERSION-REPORT.md`、`_base.mjs` 这类本地临时文件加进忽略列表。
 - **LICENSE 的版权方名从 `dsh-memvault` 改成 `dsh-session-vault`**，与仓库名一致。
+- **README 安装说明改正**：这个包没发布到 npm，`dsh plugin add dsh-session-vault` 根本装不上，
+  改成从 Releases 下载 `.tgz` 后用 `file:` 前缀安装；同时删掉「首次扫描会把所有历史会话导入」
+  这句过时描述（0.3.4 起默认不存不读，扫描只登记、不入库）。
 
 ---
 

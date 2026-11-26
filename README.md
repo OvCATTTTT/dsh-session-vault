@@ -19,11 +19,17 @@ DeepSeek Harness 的**会话长期记忆库**。把历史对话存进本地 SQLi
 
 ## 安装
 
+**这个包没有发布到 npm**，从 [Releases](https://github.com/OvCATTTTT/dsh-session-vault/releases/latest) 下载 `.tgz` 后再装：
+
 ```bash
-dsh plugin --profile <你的profile> add dsh-session-vault
+dsh plugin --profile <你的profile> add "file:<下载目录>/dsh-session-vault-0.5.0.tgz"
 ```
 
-装好后插件第一次扫描会把 `~/.dsh/sessions` 下的所有历史会话导入（一次性，几十秒）。
+> ⚠️ 不要用 `dsh plugin add <本地目录>` —— pnpm 会建 `link:` 软链接，之后一执行 `remove`
+> 就会把源码目录一起删掉。详见 [docs/packaging.md](docs/packaging.md)。
+
+装好后插件会自动扫描 `~/.dsh/sessions`、把所有会话**登记**进来（标题、时间、事件数），
+但**默认不存也不读** —— 要你自己把某个会话的「存」打开，它的事件和摘要才真正入库。
 
 ## 给模型用的工具
 
