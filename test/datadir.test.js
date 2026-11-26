@@ -7,6 +7,7 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { join } from 'node:path';
 
 import {
   candidateDataDirs, pickDataDir, resolveDataDir,
@@ -37,7 +38,7 @@ function fakeFs({ drives = {}, dshHome = 'C:\\Users\\x\\.dsh' } = {}) {
 test('候选列表：非系统盘在前，DSH_HOME 兜底且永远在最后', () => {
   const list = candidateDataDirs('C:\\Users\\x\\.dsh');
   assert.equal(list.at(-1).kind, 'home');
-  assert.equal(list.at(-1).dir, 'C:\\Users\\x\\.dsh\\session-vault');
+  assert.equal(list.at(-1).dir, join('C:\\Users\\x\\.dsh', VAULT_SUBDIR));
   // 系统盘 C 不在外部候选里
   for (const c of list.slice(0, -1)) {
     assert.notEqual(c.drive, 'C:');
@@ -66,7 +67,7 @@ test('一个非系统盘都没有 → 回退 DSH_HOME', () => {
   const env = fakeFs({ drives: { C: 66 * GB } });
   const r = pickDataDir(env.dshHome, env);
   assert.equal(r.kind, 'home');
-  assert.equal(r.dir, 'C:\\Users\\x\\.dsh\\session-vault');
+  assert.equal(r.dir, join('C:\\Users\\x\\.dsh', VAULT_SUBDIR));
   assert.match(r.reason, /没有可用的非系统盘/);
 });
 
