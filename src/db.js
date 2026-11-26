@@ -174,6 +174,16 @@ CREATE TABLE IF NOT EXISTS mined_words (
 );
 CREATE INDEX IF NOT EXISTS idx_mwords_run ON mined_words(run_id);
 
+-- ── 词向量（PPMI + SVD 训练出来的）────────────────────────────────────
+-- vec 存 Float32Array 的裸 buffer：11742 词 × 128 维 × 4 字节 ≈ 6 MB。
+-- 存 JSON 会膨胀约 8 倍，而且每次读都要解析。
+CREATE TABLE IF NOT EXISTS term_vectors (
+  term       INTEGER PRIMARY KEY,
+  dim        INTEGER NOT NULL,
+  vec        BLOB NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS terms_inv (
   term    INTEGER NOT NULL,
   summary INTEGER NOT NULL,
@@ -294,6 +304,23 @@ function ensureColumns(db) {
       table: 'terms',
       column: 'kind',
       ddl: "ALTER TABLE terms ADD COLUMN kind TEXT NOT NULL DEFAULT 'gram'",
+    },
+    {
+      // 内容指纹（只看正文，**不含 sessionId**）。
+      //
+      // 为什么需要：摘要的 hash 含 sessionId，所以同一段内容（人格卡、同一份提示词）
+      // 出现在 N 个会话里会入库 N 份。实测 511 条摘要里有 258 条（50.5%）正文完全相同。
+      // 这导致 terms.df 虚高 1.24~1.59 倍，idf 被系统性低估。
+      table: 'summaries',
+      column: 'body_hash',
+      ddl: 'ALTER TABLE summaries ADD COLUMN body_hash TEXT',
+    },
+    {
+      // 按「不同内容」统计的 df —— idf 用这个，不再用虚高的 terms.df。
+      // 倒排本身保持原样（每条摘要都有），否则会破坏 read_scope=own 的会话隔离。
+      table: 'terms',
+      column: 'df_content',
+      ddl: 'ALTER TABLE terms ADD COLUMN df_content INTEGER',
     },
   ];
   for (const w of wanted) {

@@ -162,6 +162,8 @@ export function gate(db, query, opts = {}) {
     jump = 0.4,
     spreadThreshold = 0.15,
     sessionId = null,
+    // read_scope=tags 时传进来的一组会话白名单；null 表示不按标签限
+    sessionIds = null,
     maxDfRatio = 0.6,
     minSeedHits = 1,
     maxNeighbors = 30,
@@ -177,7 +179,14 @@ export function gate(db, query, opts = {}) {
     if (typeof p?.query === 'string') effectiveQuery = p.query;
   }
 
-  const cacheKey = `${cacheEpoch}\u0000${sessionId ?? ''}\u0000${limit}\u0000${threshold}\u0000${depth}\u0000${effectiveQuery}`;
+  // 缓存键必须带上标签白名单：不同标签组合会命中不同会话集合，
+  // 不区分的话第二次查询会直接拿到第一次的结果。
+  //
+  // 注意要区分 `null`（不限）和 `[]`（白名单为空 = 一条都不给）：
+  // 两者都拼成空串的话，先查一次全库、再查一次空白名单会命中同一个缓存键，
+  // 结果就是"应该什么都没有却返回了全部"。
+  const tagKey = sessionIds == null ? '' : `#${sessionIds.slice().sort().join(',')}`;
+  const cacheKey = `${cacheEpoch}\u0000${sessionId ?? ''}\u0000${tagKey}\u0000${limit}\u0000${threshold}\u0000${depth}\u0000${effectiveQuery}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
@@ -188,7 +197,20 @@ export function gate(db, query, opts = {}) {
     return result;
   };
 
-  const total = db.prepare('SELECT COUNT(*) AS n FROM summaries').get()?.n ?? 0;
+  // 语料规模必须和 df 用同一口径：
+  //   · df_content 已经算过 → 分子分母都按「不同内容」去重
+  //   · 还没算过（老库 / 刚增量入库）→ 都退回按摘要行数
+  // 混着用会出荒谬结果：df（行数）可能大于 total（内容数），
+  // 噪声过滤（df > total*0.6）就会把正常词全部误杀。
+  const contentDfReady =
+    (db.prepare('SELECT COUNT(*) AS n FROM terms WHERE df_content IS NOT NULL').get()?.n ?? 0) > 0;
+  let total;
+  if (contentDfReady) {
+    total = db.prepare('SELECT COUNT(DISTINCT body_hash) AS n FROM summaries').get()?.n ?? 0;
+  }
+  if (!total) {
+    total = db.prepare('SELECT COUNT(*) AS n FROM summaries').get()?.n ?? 0;
+  }
   if (total === 0) return { hits: [], seedTerms: [], stats: { total: 0, ms: Date.now() - started } };
 
   const tokens = tokenize(effectiveQuery);
@@ -212,16 +234,18 @@ export function gate(db, query, opts = {}) {
   }
 
   // ① 命中关键词库
-  const findTerm = db.prepare('SELECT id, term, df, muted FROM terms WHERE term = ?');
+  // df_content 是「按不同正文去重」的 df；老库可能还没算过，退回 terms.df。
+  const findTerm = db.prepare('SELECT id, term, df, df_content, muted FROM terms WHERE term = ?');
   /** @type {Array<{id:number,w:number,term:string}>} */
   const seeds = [];
   for (const t of queryTokens) {
     const row = findTerm.get(t);
     if (!row || row.muted) continue;
-    // 噪声词过滤：出现在超过 60% 摘要里的词没有区分度。但必须加绝对下限
+    const df = Number(row.df_content) > 0 ? Number(row.df_content) : Number(row.df);
+    // 噪声词过滤：出现在超过 60% 内容里的词没有区分度。但必须加绝对下限
     // （df>3），否则在小语料里 df=2 的词也会被误判成噪声，什么都搜不到。
-    if (row.df > 3 && row.df > total * maxDfRatio) continue;
-    seeds.push({ id: row.id, w: termWeight(row.df, total, null), term: row.term });
+    if (df > 3 && df > total * maxDfRatio) continue;
+    seeds.push({ id: row.id, w: termWeight(df, total, null), term: row.term });
   }
 
   if (seeds.length === 0) {
@@ -251,6 +275,9 @@ export function gate(db, query, opts = {}) {
    * @param {Array<[number, number]>} table
    * @returns {Array<object>}
    */
+  // 按标签读：只保留白名单里的会话。null = 不限（scope 是 all / own / tags 为空）
+  const allowIds = Array.isArray(sessionIds) ? new Set(sessionIds) : null;
+
   const scoreWith = (table) => {
     if (table.length === 0) return [];
     const wOf = new Map(table);
@@ -327,6 +354,7 @@ export function gate(db, query, opts = {}) {
       const row = detail.get(summaryId);
       if (!row) continue;
       if (sessionId && row.session_id !== sessionId) continue;
+      if (allowIds && !allowIds.has(row.session_id)) continue;
 
       const dedupeKey = `${row.title ?? ''}|${String(row.body ?? '').slice(0, 120)}`;
       if (seen.has(dedupeKey)) continue;
@@ -467,7 +495,7 @@ export function openSummary(db, summaryId, opts = {}) {
  * @param {{ limit?: number, sessionId?: string|null }} [opts]
  */
 export function searchEvents(db, query, opts = {}) {
-  const { limit = 5, sessionId = null } = opts;
+  const { limit = 5, sessionId = null, sessionIds = null } = opts;
   // 每个词都要用双引号包起来。
   //
   // FTS5 的 MATCH 是**查询语法**，不是纯文本：`whale-memory` 里的连字符会被
@@ -485,7 +513,11 @@ export function searchEvents(db, query, opts = {}) {
        ORDER BY rank LIMIT ?`,
     )
     .all(seg, limit * 4);
-  return rows.filter((r) => !sessionId || r.session_id === sessionId).slice(0, limit);
+  // 白名单优先（read_scope=tags 时是一组会话），没有白名单才看单会话
+  const allow = sessionIds ? new Set(sessionIds) : null;
+  return rows
+    .filter((r) => (allow ? allow.has(r.session_id) : (!sessionId || r.session_id === sessionId)))
+    .slice(0, limit);
 }
 
 /**

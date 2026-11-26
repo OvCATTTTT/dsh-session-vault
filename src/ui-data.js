@@ -6,6 +6,7 @@
  */
 
 import { looksLikePrompt } from './extract.js';
+import { parseTagScope } from './policy.js';
 
 /**
  * 这个「标题」其实是机器生成的占位文本，拿来区分会话毫无用处。
@@ -318,8 +319,17 @@ export function parsePolicyChange(body) {
     if (storeMode !== undefined && !['inherit', 'store', 'skip'].includes(storeMode)) {
       return { ok: false, error: `storeMode 只能是 inherit/store/skip，收到 ${String(storeMode)}` };
     }
-    if (readMode !== undefined && !['inherit', 'off', 'own', 'all'].includes(readMode)) {
-      return { ok: false, error: `readMode 只能是 inherit/off/own/all，收到 ${String(readMode)}` };
+    // 读模式除了基础四档，还接受 `tags:a,b`（按标签读，支持多选）。
+    //
+    // 这里曾经只放行四档，导致前端在「读」下拉里选中「标签：xxx」之后请求被
+    // 400 打回 —— 表现就是「新建了标签但选不上、多选根本不出现」。
+    // policy.js 的 normalizeReadMode 本来就支持 tags 形式，是这层校验挡掉了。
+    if (readMode !== undefined) {
+      const base = ['inherit', 'off', 'own', 'all'];
+      const isTagMode = String(readMode).startsWith('tags:') && parseTagScope(readMode).length > 0;
+      if (!base.includes(readMode) && !isTagMode) {
+        return { ok: false, error: `readMode 只能是 inherit/off/own/all 或 tags:标签1,标签2，收到 ${String(readMode)}` };
+      }
     }
     return {
       ok: true,

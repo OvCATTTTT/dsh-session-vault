@@ -557,6 +557,32 @@ export function registerRoutes(ctx, deps) {
     }
   });
 
+  // ── 词向量（PPMI + SVD）：查看 / 手动重训 ───────────────────────────────
+  //
+  // 注意：这些向量**不参与检索**（A/B 实测无提升，见 CHANGELOG 0.5.2）。
+  // 接口只提供训练和查看，别指望调用后联想变准。
+  route('exact', `${API_PREFIX}/vectors`, async (req, res) => {
+    const vault = requireVault(res);
+    if (!vault) return;
+    try {
+      return json(res, 200, { ok: true, data: vault.vectorStats() });
+    } catch (error) {
+      return json(res, 400, { ok: false, error: String(error?.message ?? error) });
+    }
+  });
+
+  route('exact', `${API_PREFIX}/vectors/train`, async (req, res) => {
+    if (req.method !== 'POST') return json(res, 405, { ok: false, error: '只支持 POST' });
+    const vault = requireVault(res);
+    if (!vault) return;
+    try {
+      const r = await vault.trainVectorsAsync();
+      return json(res, 200, { ok: true, data: { result: r, stats: vault.vectorStats() } });
+    } catch (error) {
+      return json(res, 500, { ok: false, error: String(error?.message ?? error) });
+    }
+  });
+
   // 重新发现词表。只清点词表本身，**不动** events / summaries；
   // 但词表一变索引就得重建（否则新词没进倒排），所以顺手重建索引。
   route('exact', `${API_PREFIX}/words/discover`, async (req, res) => {

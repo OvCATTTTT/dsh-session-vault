@@ -23,7 +23,7 @@ DeepSeek Harness 的**会话长期记忆库**。把历史对话存进本地 SQLi
 **这个包没有发布到 npm**，从 [Releases](https://github.com/OvCATTTTT/dsh-session-vault/releases/latest) 下载 `.tgz` 后再装：
 
 ```bash
-dsh plugin --profile <你的profile> add "file:<下载目录>/dsh-session-vault-0.5.0.tgz"
+dsh plugin --profile <你的profile> add "file:<下载目录>/dsh-session-vault-0.5.3.tgz"
 ```
 
 > ⚠️ 不要用 `dsh plugin add <本地目录>` —— pnpm 会建 `link:` 软链接，之后一执行 `remove`

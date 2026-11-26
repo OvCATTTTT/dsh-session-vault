@@ -555,8 +555,8 @@ test('设置页 API：完整链路', async (t) => {
   });
 
   // 路由都注册上了（界面是 React 组件，不再由宿主提供 HTML 页面）
-  // 0.5.0 起新增 4 条：purge-preview / words / words/discover / backup
-  assert.equal(srv.reg.registered, 29, `应注册 29 条，实际 ${srv.reg.registered}`);
+  // 0.5.0 起新增：purge-preview / words / words/discover / backup / vectors / vectors-train
+  assert.equal(srv.reg.registered, 31, `应注册 31 条，实际 ${srv.reg.registered}`);
   assert.ok(!srv.routes.has(`${API_PREFIX}/ui`), '不再托管 UI 页面');
   assert.ok(srv.routes.has(`${API_PREFIX}/overview`));
   assert.ok(srv.routes.has(`${API_PREFIX}/terms`));

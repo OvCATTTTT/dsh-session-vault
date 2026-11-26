@@ -239,6 +239,22 @@ const PAGES = {
     rows: recallRows, busy: false, sessionOptions: [['', '全部会话'], ['session-a141dc07', '工作区 · 测试']],
     sessionId: '', onlyInjected: false, onSession: noop, onToggleInjected: noop, onRefresh: noop,
   })),
+  'ops.html': toHtml(tabs.OpsTab({
+    data: { dataDir: 'D:\\DSH_vault\\session-vault' },
+    busy: false,
+    ops: '',
+    onMigrate: noop, onRebuild: noop, onExport: noop, onPurge: noop,
+    target: '', onTargetChange: noop, onResetPolicies: noop,
+    onBackup: noop, onRediscoverWords: noop, onTrainVectors: noop,
+    words: { total: 343, byLen: { 2: 305, 3: 23, 4: 15 }, epoch: 1 },
+    vectors: {
+      total: 7522,
+      dim: 128,
+      updatedAt: Date.now() - 3600_000,
+      last: { terms: 7522, docs: 383, nnz: 57977, dim: 128, energy: 0.965, saved: 7522, totalMs: 747 },
+      usedInRecall: false,
+    },
+  })),
   'surfcore.html': toHtml(tabs.SurfcoreTab({
     data: {
       ok: true,

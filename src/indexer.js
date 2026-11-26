@@ -13,6 +13,7 @@
 import { createHash } from 'node:crypto';
 import { terms as tokenize } from './ngram.js';
 import { findWordsIn, buildWordIndex } from './worddiscover.js';
+import { isProceduralFragment } from './extract.js';
 
 /** 边权重的饱和常数：hits 达到 5 时权重约 0.63。 */
 export const SATURATION = 5;
@@ -132,11 +133,16 @@ export function insertSummary(db, s) {
   const dup = db.prepare('SELECT id FROM summaries WHERE hash = ?').get(s.hash);
   if (dup) return null;
 
+  // 内容指纹：只看正文，不含 sessionId。
+  // 同一段话在多个会话里各存一份时，hash 不同但 body_hash 相同 ——
+  // df_content 靠它去重统计，否则 idf 会虚高。
+  const bodyHash = hashText(String(s.body ?? ''));
+
   const info = db
     .prepare(
       `INSERT INTO summaries(session_id, workspace, kind, title, body,
-         period_from, period_to, seq_from, seq_to, hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         period_from, period_to, seq_from, seq_to, hash, created_at, body_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       s.sessionId ?? null,
@@ -150,11 +156,64 @@ export function insertSummary(db, s) {
       s.seqTo ?? null,
       s.hash,
       s.createdAt ?? Date.now(),
+      bodyHash,
     );
 
   const id = Number(info.lastInsertRowid);
   db.prepare('INSERT INTO summaries_fts(rowid, seg) VALUES (?, ?)').run(id, tokenize(s.body).join(' '));
   return id;
+}
+
+/**
+ * 给一段文本算内容指纹（sha1）。用于按「不同内容」统计 df。
+ * @param {string} text
+ * @returns {string}
+ */
+export function hashText(text) {
+  return createHash('sha1').update(String(text ?? '')).digest('hex');
+}
+
+/**
+ * 重算 terms.df_content —— 按「不同正文」而不是「摘要行数」统计。
+ *
+ * 为什么不能直接用 terms.df：摘要的 hash 含 sessionId，同一段内容在 N 个会话里
+ * 会有 N 行摘要。实测这种重复占 50.5%，于是 df 虚高 1.24~1.59 倍，
+ * idf = log(total/df) 被系统性压低，噪声词过滤（df > total*0.6）也更容易误杀。
+ *
+ * 倒排 `terms_inv` 保持不动 —— 每条摘要都要能被自己的会话检索到，
+ * 只在统计口径上按内容去重。
+ *
+ * @returns {{ updated: number, filled: number }}
+ */
+export function recomputeContentDf(db) {
+  // ① 补上老数据的 body_hash
+  const missing = db.prepare('SELECT id, body FROM summaries WHERE body_hash IS NULL').all();
+  if (missing.length > 0) {
+    const upd = db.prepare('UPDATE summaries SET body_hash = ? WHERE id = ?');
+    for (const r of missing) upd.run(hashText(r.body), r.id);
+  }
+
+  // ② 一次性聚合：每个词出现在多少个不同内容里
+  db.exec('BEGIN');
+  try {
+    db.exec('UPDATE terms SET df_content = NULL');
+    const rows = db
+      .prepare(
+        `SELECT ti.term AS id, COUNT(DISTINCT s.body_hash) AS n
+         FROM terms_inv ti JOIN summaries s ON s.id = ti.summary
+         GROUP BY ti.term`,
+      )
+      .all();
+    const upd = db.prepare('UPDATE terms SET df_content = ? WHERE id = ?');
+    for (const r of rows) upd.run(r.n, r.id);
+    db.exec('COMMIT');
+  } catch (error) {
+    try { db.exec('ROLLBACK'); } catch { /* 忽略 */ }
+    throw error;
+  }
+
+  const updated = db.prepare('SELECT COUNT(*) AS n FROM terms WHERE df_content IS NOT NULL').get()?.n ?? 0;
+  return { updated, filled: missing.length };
 }
 
 /**
@@ -490,10 +549,25 @@ export function rebuildIndex(db, opts = {}) {
     db.exec('DELETE FROM terms');
 
     const rows = db.prepare('SELECT id, body FROM summaries ORDER BY id').all();
-    for (const r of rows) indexSummaryTerms(db, r.id, String(r.body ?? ''));
+    let skipped = 0;
+    for (const r of rows) {
+      // 和摄入时同一套规则：过程性碎片不建索引。这样重建一次就能把
+      // 历史上已经污染的碎片索引清出去，不需要手动删数据。
+      if (isProceduralFragment(String(r.body ?? ''))) { skipped += 1; continue; }
+      indexSummaryTerms(db, r.id, String(r.body ?? ''));
+    }
 
     const pruned = pruneTerms(db, { minDf, maxCount, minEdgeHits });
     db.exec('COMMIT');
+
+    // 索引建完后重算「按内容去重」的 df —— 必须放在 prune 之后，
+    // 否则算好的 df_content 会随被剪掉的词一起丢弃。
+    let contentDf = 0;
+    try {
+      contentDf = recomputeContentDf(db).updated;
+    } catch {
+      // 算不准就退回 terms.df，检索侧有兜底
+    }
 
     const edges = db.prepare('SELECT COUNT(*) AS n FROM term_edges').get()?.n ?? 0;
     return {
@@ -501,6 +575,8 @@ export function rebuildIndex(db, opts = {}) {
       terms: pruned.kept,
       edges,
       pruned: pruned.removed,
+      contentDf,
+      fragmentsSkipped: skipped,
       ms: Date.now() - started,
     };
   } catch (error) {

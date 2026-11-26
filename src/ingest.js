@@ -15,7 +15,7 @@ import { join, basename, dirname } from 'node:path';
 import { zstdDecompressSync } from 'node:zlib';
 
 import { decodeFrom, parseLines, frameOffsets } from './decode.js';
-import { extract, firstLine, isTextlessEvent, looksLikePrompt } from './extract.js';
+import { extract, firstLine, isTextlessEvent, looksLikePrompt, isProceduralFragment } from './extract.js';
 import { contentHash, insertSummary, indexSummaryTerms } from './indexer.js';
 import { effectivePolicy, materializePolicy, upsertSession } from './policy.js';
 import { tx, metaGet, metaSet } from './db.js';
@@ -377,7 +377,13 @@ export function importSessionFile(db, file, cfg) {
           hash: contentHash('turn', sessionId, turnKey, chunk),
         });
         if (id !== null) {
-          indexSummaryTerms(db, id, body);
+          // 过程性碎片（`现在开始应用补丁：` 这种）照样入库、能展开看，
+          // 但不建关键词索引 —— 它没有任何检索价值，进去只会稀释词库。
+          if (isProceduralFragment(body)) {
+            stats.fragmentSummaries = (stats.fragmentSummaries ?? 0) + 1;
+          } else {
+            indexSummaryTerms(db, id, body);
+          }
           stats.newSummaries += 1;
         }
       };

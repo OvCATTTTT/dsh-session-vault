@@ -197,6 +197,45 @@ export function looksGarbled(line) {
   return bad / s.length > 0.2;
 }
 
+/** 过程预告语的开头：「现在…」「接下来…」「让我…」。 */
+const PROC_HEAD = /^\s*(现在|接下来|那我|我先|让我|开始|下面|这就)\s*/;
+/** 以冒号结尾的短句 —— 典型断头话（后面就没了）。 */
+const PROC_COLON_END = /[:：]\s*$/;
+
+/**
+ * 判断一条摘要是不是「过程性碎片」。
+ *
+ * 背景：一轮对话里助手会先说「现在开始应用补丁：」，然后调工具、再给结论。
+ * 这种过程预告会被单独生成一条摘要（因为工具调用会切出新的 turn），
+ * 结果是一条 14 字的 `现在开始应用补丁：` 也能被检索到 —— 纯噪声。
+ *
+ * 实测（514 条摘要）命中 10 条（1.9%），全是这类。规则刻意保守：
+ *
+ *   · **有用户发言的一律保留**。踩过坑：`[用户] 你可以检索到记忆库这个项目吗`
+ *     只有 19 字，但那是真实提问；早期版本把这种也过滤了。
+ *   · 极短（< 40 字）且只有助手发言 → 碎片
+ *   · 或「现在/接下来/让我…」开头 + 冒号结尾 + 不到 120 字 → 碎片
+ *
+ * 碎片**仍然入库**（还能展开看），只是不建关键词索引，不参与检索。
+ *
+ * @param {string} body
+ * @returns {boolean}
+ */
+export function isProceduralFragment(body) {
+  const b = String(body ?? '').trim();
+  if (!b) return true;
+  // 没有角色标签的裸文本（老数据、压缩摘要、测试数据）→ 判断不了角色，保留。
+  // 真实摘要一定带 `[用户]` / `[助手]` 前缀。
+  if (!/\[(用户|助手)\]/.test(b)) return false;
+  // 有用户发言 → 一定保留（真实意图/需求）
+  if (/\[用户\]/.test(b)) return false;
+  const plain = b.replace(/\[(用户|助手)\]/g, '').trim();
+  if (plain.length === 0) return true;
+  if (plain.length < 40) return true;
+  if (plain.length < 120 && PROC_HEAD.test(plain) && PROC_COLON_END.test(plain)) return true;
+  return false;
+}
+
 /** 该事件类型是否属于「无文本遥测」。用于统计丢弃量。 */
 export function isTextlessEvent(type) {
   return ![

@@ -374,6 +374,8 @@ export function apply(ctx, rawConfig) {
           const result = vault.recall(query, {
             sessionId,
             readScope,
+            // 按标签读时必须带上标签列表，否则 core 那边展不出会话白名单
+            readTags: policy?.readTags ?? [],
             limit: cfg.hintMaxItems,
             threshold: cfg.hintThreshold,
             trigger: 'auto',
@@ -520,6 +522,41 @@ export function apply(ctx, rawConfig) {
     if (Number(cfg.scanIntervalSec) > 0) {
       try {
         const timer = setInterval(() => runScan('定时'), Number(cfg.scanIntervalSec) * 1000);
+        timer.unref?.();
+        ctx.effect(() => () => clearInterval(timer));
+      } catch {
+        // 忽略
+      }
+    }
+
+    // ── 词向量（PPMI + SVD）定期重训 ─────────────────────────────────────
+    //
+    // 这套向量**目前不参与检索**（A/B 实测无提升，见 CHANGELOG 0.5.2），
+    // 训练结果只写进 term_vectors 备查。所以：
+    //   · 失败绝不能影响宿主 —— 全部包在 try/catch 里
+    //   · 不在启动时立刻跑，挪到 60 秒后（启动那阵子别跟宿主抢 CPU）
+    //   · 全量训练约 700ms，异步且不阻塞
+    if (Number(cfg.vectorTrainIntervalSec) > 0) {
+      const trainVectors = (reason) => {
+        try {
+          if (disabled || !vault || vault.scanning) return;
+          vault
+            .trainVectorsAsync()
+            .then((r) => {
+              if (r?.skipped) return;
+              log(`词向量已训练（${reason}）：${r.saved} 个词 × ${r.dim} 维，耗时 ${r.totalMs}ms`);
+            })
+            .catch((error) => log(`词向量训练失败：${String(error)}`, 'warn'));
+        } catch (error) {
+          log(`词向量训练触发失败：${String(error)}`, 'warn');
+        }
+      };
+      try {
+        const first = setTimeout(() => trainVectors('启动'), 60000);
+        first.unref?.();
+        ctx.effect(() => () => clearTimeout(first));
+
+        const timer = setInterval(() => trainVectors('定时'), Number(cfg.vectorTrainIntervalSec) * 1000);
         timer.unref?.();
         ctx.effect(() => () => clearInterval(timer));
       } catch {

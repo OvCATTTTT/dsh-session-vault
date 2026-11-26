@@ -65,6 +65,13 @@ export function defaults(env) {
 
     // ── 运维 ──
     scanIntervalSec: 300,
+    // 词向量（PPMI + SVD）多久重训一次。默认 6 小时。
+    //
+    // 这套训练是**全量**的（从零重算），不是增量 —— PPMI 的分母是全局统计量，
+    // 新内容一进来旧值就该重算，所以增量在数学上没有意义。
+    // 但实测训练只要 700ms（QR 分解 O(词数×k²)，内容变多影响很小），全量完全够用。
+    // 设 0 关闭。
+    vectorTrainIntervalSec: 21600,
     spoolEnabled: true,
     debug: false,
   };
@@ -110,6 +117,7 @@ export function normalizeConfig(raw, env) {
   merged.summaryMaxChars = Math.round(clampNumber(merged.summaryMaxChars, { min: 200, max: 20000, fallback: base.summaryMaxChars }));
   merged.ftsMaxChars = Math.round(clampNumber(merged.ftsMaxChars, { min: 500, max: 500000, fallback: base.ftsMaxChars }));
   merged.scanIntervalSec = Math.round(clampNumber(merged.scanIntervalSec, { min: 0, max: 86400, fallback: base.scanIntervalSec }));
+  merged.vectorTrainIntervalSec = Math.round(clampNumber(merged.vectorTrainIntervalSec, { min: 0, max: 604800, fallback: base.vectorTrainIntervalSec }));
   merged.termMinDf = Math.round(clampNumber(merged.termMinDf, { min: 1, max: 50, fallback: base.termMinDf }));
   merged.termMaxCount = Math.round(clampNumber(merged.termMaxCount, { min: 0, max: 200000, fallback: base.termMaxCount }));
   merged.minEdgeHits = Math.round(clampNumber(merged.minEdgeHits, { min: 1, max: 20, fallback: base.minEdgeHits }));

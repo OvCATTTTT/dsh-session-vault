@@ -75,7 +75,7 @@ export function registerTools(ctx, deps) {
       const vault = needVault();
       const cfg = getConfig();
       const sessionId = sessionIdFromExec(exec);
-      const { readScope } = scopeOf(vault, sessionId);
+      const { readScope, policy } = scopeOf(vault, sessionId);
 
       if (readScope === 'off') {
         return { blocked: true, hits: [], summary: '本会话未开启记忆读取（read_scope = off）。' };
@@ -84,6 +84,8 @@ export function registerTools(ctx, deps) {
       const result = vault.recall(String(args.query ?? ''), {
         sessionId,
         readScope,
+        // 按标签读时把标签列表传下去，否则 core 展不出会话白名单、等于读全库
+        readTags: policy?.readTags ?? [],
         limit: Number(args.limit) > 0 ? Number(args.limit) : cfg.hintMaxItems,
         trigger: 'tool',
       });

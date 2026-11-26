@@ -21,6 +21,7 @@ import {
 } from './pins.js';
 import { listTerms, patchTerm, termStats, pruneTerms, rebuildIndex, invalidateWordIndex } from './indexer.js';
 import { discoverWordsAsync, DEFAULT_MIN_SAMPLES } from './worddiscover.js';
+import { trainTermVectors, saveTermVectors, DEFAULT_DIM } from './semantic.js';
 import {
   migrateDataDir, dirSize, locationPointerPath, readLocationPointer, writeLocationPointer,
 } from './migrate.js';
@@ -49,6 +50,9 @@ const MINING_VERSION_KEY = 'miningVersion';
 
 /** 词发现的最少样本数：少于这么多条摘要就不跑（统计量不可靠）。 */
 const MIN_WORD_SAMPLES = DEFAULT_MIN_SAMPLES;
+
+/** 训练词向量的最少内容数：低于这个数 SVD 学不到有意义的语义。 */
+const MIN_VECTOR_DOCS = 100;
 
 /**
  * 运行期开关的已知清单。
@@ -352,6 +356,23 @@ export class SessionVault {
     }
 
     const started = Date.now();
+
+    // 按标签读：把标签展开成一组会话 id 作为白名单。
+    //
+    // 以前这里只处理了 off 和 own，`scope === 'tags'` 直接落进"不限会话"分支，
+    // 等于读全库 —— 界面上能选中标签、库里也存对了，但检索根本没用上它。
+    // 这就是「多选标签没实现」的实质。
+    let tagSessionIds = null;
+    if (scope === 'tags') {
+      const tags = Array.isArray(opts.readTags) ? opts.readTags : [];
+      tagSessionIds = sessionIdsByTags(db, tags);
+      // 选中了标签但没有任何会话带这些标签：直接返回空，别退回读全库
+      if (tagSessionIds.length === 0) {
+        const empty = { hits: [], seedTerms: [], stats: { blocked: true, reason: 'tags-empty' }, text: '' };
+        return empty;
+      }
+    }
+
     const result = gate(db, query, {
       limit: opts.limit ?? cfg.hintMaxItems ?? 3,
       threshold: opts.threshold ?? cfg.hintThreshold ?? 0.35,
@@ -362,6 +383,7 @@ export class SessionVault {
       maxFrontier: cfg.maxFrontier ?? 100,
       maxSpreadTerms: cfg.maxSpreadTerms ?? 400,
       sessionId: scope === 'own' ? opts.sessionId ?? null : null,
+      sessionIds: tagSessionIds,
     });
 
     // 兜底：关键词层没命中时走一次原文全文检索
@@ -369,6 +391,7 @@ export class SessionVault {
       const events = searchEvents(db, query, {
         limit: opts.limit ?? 3,
         sessionId: scope === 'own' ? opts.sessionId ?? null : null,
+        sessionIds: tagSessionIds,
       });
       if (events.length) {
         result.fallbackEvents = events;
@@ -796,6 +819,69 @@ export class SessionVault {
       total,
       byLen: Object.fromEntries(byLen.map((r) => [r.len, r.n])),
       epoch: epoch ? Number(epoch) : null,
+    };
+  }
+
+  /**
+   * 训练词向量（PPMI + SVD），结果写进 `term_vectors`。
+   *
+   * **这套向量目前不参与检索** —— A/B 实测没有提升（top1 相关率 86% vs 86%），
+   * 详见 CHANGELOG 0.5.2。这里做的是「把训练自动化」，让语料涨起来之后能随时
+   * 重跑一次看看有没有用，而不是每次手动写脚本。
+   *
+   * 训练成本实测：383 条不同内容 / 7521 个词 → 704ms。
+   * 主要成本是 QR 分解 O(词数 × k²)，内容变多对耗时影响很小。
+   *
+   * @param {{ dim?: number, minDf?: number, onProgress?: Function }} [opts]
+   */
+  async trainVectorsAsync(opts = {}) {
+    const db = this.open();
+    const docs =
+      db.prepare('SELECT COUNT(DISTINCT body_hash) AS n FROM summaries WHERE body_hash IS NOT NULL').get()?.n ?? 0;
+    // 语料太少时 SVD 学不出东西。低于这个数直接跳过。
+    if (docs < MIN_VECTOR_DOCS) {
+      return {
+        skipped: true,
+        reason: `不同内容只有 ${docs} 条，少于 ${MIN_VECTOR_DOCS} 条时 SVD 学不到有意义的语义`,
+        docs,
+      };
+    }
+
+    const started = Date.now();
+    const dim = Number(opts.dim) || DEFAULT_DIM;
+    const trained = await trainTermVectors(db, { dim, onProgress: opts.onProgress });
+    if (!trained.termIds.length) {
+      return { skipped: true, reason: '没有可训练的词', docs };
+    }
+    const saved = saveTermVectors(db, trained);
+    const stats = {
+      ...trained.stats,
+      saved,
+      docs,
+      at: Date.now(),
+      totalMs: Date.now() - started,
+    };
+    metaSet(db, 'vectors_stats', JSON.stringify(stats));
+    return stats;
+  }
+
+  /** 词向量现状（给界面用）。 */
+  vectorStats() {
+    const db = this.open();
+    const rows = db.prepare('SELECT COUNT(*) AS n, MAX(updated_at) AS at, MAX(dim) AS dim FROM term_vectors').get();
+    let last = null;
+    try {
+      last = JSON.parse(metaGet(db, 'vectors_stats', 'null') ?? 'null');
+    } catch {
+      last = null;
+    }
+    return {
+      total: rows?.n ?? 0,
+      dim: rows?.dim ?? null,
+      updatedAt: rows?.at ?? null,
+      last,
+      // 明确告诉界面：这些向量目前只落库，不参与检索
+      usedInRecall: false,
     };
   }
 
