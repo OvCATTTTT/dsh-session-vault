@@ -180,6 +180,26 @@ const recallRows = [
       { id: 5049, score: 0.42, title: '我想要给你搭建一个向量记忆库以便存储所有的记忆', sessionTitle: '工作区 · 向量记忆库' },
     ],
     injected: 1, elapsedMs: 5, sessionTitle: '工作区 · 测试',
+    // 「为什么命中」面板的数据（示例数据）
+    diag: {
+      query: '新开一个tab',
+      tokens: 4,
+      total: 383,
+      threshold: 0.35,
+      seeds: [
+        { term: '新开', w: 5.21, share: 0.31 },
+        { term: '开一', w: 4.87, share: 0.29 },
+        { term: '一个', w: 3.02, share: 0.18 },
+        { term: '个ta', w: 3.71, share: 0.22 },
+      ],
+      blocked: [
+        { term: 'tab', why: '词库里没有' },
+      ],
+      hits: [
+        { id: 5060, seedScore: 0.41, spreadScore: 0.08, hub: 0.82, boost: 0, len: 620, hitTerms: ['新开', '一个'] },
+        { id: 5049, seedScore: 0.35, spreadScore: 0, hub: 1, boost: 0, len: 210, hitTerms: ['开一'] },
+      ],
+    },
   },
   {
     id: 18, ts: now - 300e3, trigger: 'auto', query: '我怎么验证我发消息联想到了之前的东西',
@@ -238,6 +258,7 @@ const PAGES = {
   'recalls.html': toHtml(tabs.RecallTab({
     rows: recallRows, busy: false, sessionOptions: [['', '全部会话'], ['session-a141dc07', '工作区 · 测试']],
     sessionId: '', onlyInjected: false, onSession: noop, onToggleInjected: noop, onRefresh: noop,
+    openId: 19, onToggleWhy: noop,
   })),
   'ops.html': toHtml(tabs.OpsTab({
     data: { dataDir: 'D:\\DSH_vault\\session-vault' },

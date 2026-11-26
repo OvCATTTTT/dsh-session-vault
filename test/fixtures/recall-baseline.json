@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "createdAt": "2026-11-27",
+  "note": [
+    "联想质量的人工评估基准。",
+    "",
+    "判定标准：命中的摘要和 query 是否在聊【同一件事】——用户看到这条能不能想起相关内容。",
+    "只是共享了词但话题不同的，判 false。",
+    "",
+    "这份基准是在 0.5.3 状态下标注的（df 已修正、碎片已过滤、hub 已降权）。",
+    "以后改检索逻辑时跑 scripts/eval-recall.mjs 对比。",
+    "",
+    "注意：query 是从真实 recall_log 里分层采样的（短/中/长各取一些）。",
+    "其中几条是泛查询（『我需要操作什么』『做吧按照b方案』），本来就没有可检索的语义，",
+    "留着是为了防止评估只看好命中的样本。"
+  ],
+  "sample": [
+    {
+      "query": "关键词怎么分词",
+      "hits": [
+        { "id": 5047, "relevant": false, "why": "运维页 hooks bug，与分词无关" },
+        { "id": 5049, "relevant": true, "why": "正是讲关键词质量：路径和英文污染词库" },
+        { "id": 5287, "relevant": false, "why": "插件能力盘点" }
+      ]
+    },
+    {
+      "query": "PPMI+SVD方案可以随累计增加吗",
+      "hits": [
+        { "id": 4994, "relevant": false, "why": "讲的是『对之前会话零记忆』" },
+        { "id": 4980, "relevant": true, "why": "向量记忆库方案，同一话题链" },
+        { "id": 4983, "relevant": false, "why": "同系列但内容是存读默认值、会话标题" }
+      ]
+    },
+    {
+      "query": "工作区会话读的是对应标签里的内容吗",
+      "hits": [
+        { "id": 4983, "relevant": true, "why": "讲存/读策略的默认值" },
+        { "id": 5262, "relevant": false, "why": "查工作区里有哪些文件" },
+        { "id": 4937, "relevant": false, "why": "人格卡内容核对" }
+      ]
+    },
+    {
+      "query": "我需要操作什么",
+      "hits": [
+        { "id": 4798, "relevant": false, "why": "KM-TEST 环回适配器排查" },
+        { "id": 4841, "relevant": false, "why": "提示词分工调整" },
+        { "id": 4850, "relevant": false, "why": "插件安装命令" }
+      ]
+    },
+    {
+      "query": "做吧按照b方案",
+      "hits": [
+        { "id": 4853, "relevant": false, "why": "调试规则与人设卡载入" },
+        { "id": 4855, "relevant": false, "why": "与上一条内容重复，且都无关" },
+        { "id": 4863, "relevant": false, "why": "关键词开关与记忆文件夹" }
+      ]
+    },
+    {
+      "query": "上向量检索怎么搞给方案",
+      "hits": [
+        { "id": 4979, "relevant": true, "why": "向量记忆库方案的起点" },
+        { "id": 4988, "relevant": true, "why": "DSH 插件机制开放到什么程度（同一话题链）" },
+        { "id": 4997, "relevant": true, "why": "只增不删的检索方案与嵌入模型确认" }
+      ]
+    },
+    {
+      "query": "补摘要粒度 + 多标签多选也做了吧",
+      "hits": [
+        { "id": 5199, "relevant": true, "why": "就是这件事：摘要粒度 + 多标签" },
+        { "id": 5212, "relevant": true, "why": "同一轮的收尾（0.4.3 完成）" },
+        { "id": 5211, "relevant": true, "why": "同轮测试输出" }
+      ]
+    },
+    {
+      "query": "1多块摘要相似的可以去重吗 2不用调模型可以做语义吗",
+      "hits": [
+        { "id": 4980, "relevant": false, "why": "向量记忆库起步，但没讲去重也没讲不用模型做语义" }
+      ]
+    },
+    {
+      "query": "1联想的命中和注入可以打开看怎么联想的吗 2可以通过加大注入和命中来提高准确率吗",
+      "hits": [
+        { "id": 5276, "relevant": true, "why": "正是这次对话：实测加大注入反而稀释准确率" },
+        { "id": 5282, "relevant": false, "why": "碎片过滤与 df 口径" },
+        { "id": 5228, "relevant": false, "why": "联想 tab 的界面说明，不是『为什么命中』" }
+      ]
+    },
+    {
+      "query": "1下拉框界面对齐 2每次联想的东西都时有用的吗",
+      "hits": [
+        { "id": 5252, "relevant": true, "why": "hub 降权，正是修联想质量" },
+        { "id": 5250, "relevant": true, "why": "下拉框选不出的根因" },
+        { "id": 5249, "relevant": true, "why": "同一件事的诊断过程" }
+      ]
+    },
+    {
+      "query": "重启后为什么概览和数据记录页面还显示记录在c盘？",
+      "hits": [
+        { "id": 5228, "relevant": false, "why": "联想 tab 界面，与数据目录无关" },
+        { "id": 5246, "relevant": false, "why": "摘要 id 显示成标题" },
+        { "id": 5222, "relevant": false, "why": "写 CHANGELOG 和手册" }
+      ]
+    },
+    {
+      "query": "新tab管理sulfcore的记忆，不对sulfcore的数据文件修改，有什么建议",
+      "hits": [
+        { "id": 4980, "relevant": false, "why": "向量记忆库方案，与 surfcore 无关" },
+        { "id": 5231, "relevant": true, "why": "摸清 surfcore 数据格式与位置" },
+        { "id": 4983, "relevant": false, "why": "存读默认值与会话标题" }
+      ]
+    },
+    {
+      "query": "以上的版本优化记下来，然后另外新建个文件写都有什么功能怎么用",
+      "hits": [
+        { "id": 5226, "relevant": false, "why": "演示联想触发过程" },
+        { "id": 5213, "relevant": true, "why": "正是这件事：CHANGELOG + 手册" },
+        { "id": 5223, "relevant": true, "why": "同一轮收尾，产出了两份文档" }
+      ]
+    },
+    {
+      "query": "我的一个会话里聊的大部分是和obsidian有关的，但是关键词里没有obsidian这个关键词为什么",
+      "hits": [
+        { "id": 4983, "relevant": false, "why": "存读默认值" },
+        { "id": 4790, "relevant": false, "why": "本地模型提示词溢出" },
+        { "id": 4858, "relevant": false, "why": "调试关键词规则，但没涉及 obsidian 为什么没进词库" }
+      ]
+    },
+    {
+      "query": "1如果用户没装sulfcore要确保不会报错\n2sulfcore的数据进记忆库的关键词联想吗，我不希望他进",
+      "hits": [
+        { "id": 5236, "relevant": true, "why": "正是这两条需求的验证结果" },
+        { "id": 4858, "relevant": false, "why": "调试关键词规则" }
+      ]
+    },
+    {
+      "query": "1默认新用户的所有记忆库数据都放在和插件文件夹的一个同级目录下\n2把之前的数据都转移过来\n3两种入库方式都做",
+      "hits": [
+        { "id": 4853, "relevant": false, "why": "调试规则与人设卡载入" },
+        { "id": 4855, "relevant": false, "why": "与上一条重复，且无关" },
+        { "id": 4983, "relevant": false, "why": "存读默认值，不是数据目录迁移" }
+      ]
+    },
+    {
+      "query": "1上面两个bug修一下，美化一下ui\n2置顶中查看会话内容时提供只看user和assistant的选项，并且可以点开每条内容方便查看",
+      "hits": [
+        { "id": 5230, "relevant": true, "why": "正是这两个需求（0.4.7）" },
+        { "id": 4983, "relevant": false, "why": "存读默认值" }
+      ]
+    }
+  ]
+}

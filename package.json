@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-vault",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "description": "DeepSeek Harness 会话长期记忆库：关键词 → 摘要 → 原文 三层检索，无遗忘、分会话可存可读、零运行时依赖，带原生设置页（React 插槽组件）。",
   "type": "module",
   "main": "src/index.js",

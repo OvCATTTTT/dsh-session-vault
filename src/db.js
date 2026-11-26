@@ -322,6 +322,13 @@ function ensureColumns(db) {
       column: 'df_content',
       ddl: 'ALTER TABLE terms ADD COLUMN df_content INTEGER',
     },
+    {
+      // 每次联想的「为什么」：种子词及权重、被挡掉的词、每条命中的分数分解。
+      // 只给界面回看用，不参与检索。老记录为 NULL，界面显示「早期记录无诊断」。
+      table: 'recall_log',
+      column: 'diag',
+      ddl: 'ALTER TABLE recall_log ADD COLUMN diag TEXT',
+    },
   ];
   for (const w of wanted) {
     try {

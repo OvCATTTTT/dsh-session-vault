@@ -238,13 +238,19 @@ export function gate(db, query, opts = {}) {
   const findTerm = db.prepare('SELECT id, term, df, df_content, muted FROM terms WHERE term = ?');
   /** @type {Array<{id:number,w:number,term:string}>} */
   const seeds = [];
+  // 诊断：被挡在种子之外的词，以及原因。联想页要能解释「为什么这个词没参与」。
+  const blocked = [];
   for (const t of queryTokens) {
     const row = findTerm.get(t);
-    if (!row || row.muted) continue;
+    if (!row) { blocked.push({ term: t, why: '词库里没有' }); continue; }
+    if (row.muted) { blocked.push({ term: t, why: '被屏蔽' }); continue; }
     const df = Number(row.df_content) > 0 ? Number(row.df_content) : Number(row.df);
     // 噪声词过滤：出现在超过 60% 内容里的词没有区分度。但必须加绝对下限
     // （df>3），否则在小语料里 df=2 的词也会被误判成噪声，什么都搜不到。
-    if (df > 3 && df > total * maxDfRatio) continue;
+    if (df > 3 && df > total * maxDfRatio) {
+      blocked.push({ term: row.term, why: `过于常见（df ${df}/${total}）` });
+      continue;
+    }
     seeds.push({ id: row.id, w: termWeight(df, total, null), term: row.term });
   }
 
@@ -281,6 +287,17 @@ export function gate(db, query, opts = {}) {
   const scoreWith = (table) => {
     if (table.length === 0) return [];
     const wOf = new Map(table);
+    // term id → 词面，只给诊断用（「这条是被哪个词命中的」）
+    const termNameOf = new Map();
+    try {
+      const ids = table.map(([id]) => id);
+      const ph2 = ids.map(() => '?').join(',');
+      for (const r of db.prepare(`SELECT id, term FROM terms WHERE id IN (${ph2})`).all(...ids)) {
+        termNameOf.set(r.id, r.term);
+      }
+    } catch {
+      // 查不到就退回 #id，不影响检索
+    }
     let spreadDenom = 0;
     for (const [id, w] of table) if (!seedIds.has(id)) spreadDenom += w;
     spreadDenom = spreadDenom || 1;
@@ -290,14 +307,16 @@ export function gate(db, query, opts = {}) {
       .prepare(`SELECT term, summary, w FROM terms_inv WHERE term IN (${ph})`)
       .all(...table.map(([id]) => id));
 
-    /** @type {Map<number, { seedRaw: number, spreadRaw: number, seedHits: number }>} */
+    /** @type {Map<number, { seedRaw: number, spreadRaw: number, seedHits: number, hitTerms: string[] }>} */
     const agg = new Map();
     for (const row of invRows) {
       const tw = wOf.get(row.term) ?? 0;
-      const cur = agg.get(row.summary) ?? { seedRaw: 0, spreadRaw: 0, seedHits: 0 };
+      const cur = agg.get(row.summary) ?? { seedRaw: 0, spreadRaw: 0, seedHits: 0, hitTerms: [] };
       if (seedIds.has(row.term)) {
         cur.seedRaw += tw * (row.w ?? 1);
         cur.seedHits += 1;
+        // 记录命中的是哪个词（诊断用；上限 8 个避免撑爆）
+        if (cur.hitTerms.length < 8) cur.hitTerms.push(termNameOf.get(row.term) ?? `#${row.term}`);
       } else {
         cur.spreadRaw += tw * (row.w ?? 1);
       }
@@ -326,12 +345,24 @@ export function gate(db, query, opts = {}) {
       .map(([summaryId, v]) => {
         const boost = boosts.get(summaryId) ?? 0;
         // 词命中分先算，再乘 hub 降权，最后加 boost（boost 不该被长度惩罚）
-        const lexical = v.seedRaw / seedDenom + 0.25 * (v.spreadRaw / spreadDenom);
+        const seedScore = v.seedRaw / seedDenom;
+        const spreadScore = 0.25 * (v.spreadRaw / spreadDenom);
+        const len = lenOf.get(summaryId) ?? 0;
+        const hub = hubFactor(len);
         return {
           summaryId,
           boost,
-          score: Math.min(1, Math.max(0, lexical * hubFactor(lenOf.get(summaryId)) + boost)),
+          score: Math.min(1, Math.max(0, (seedScore + spreadScore) * hub + boost)),
           seedHits: v.seedHits,
+          // 诊断：这条为什么得了这个分。只用于回看，不参与打分。
+          diag: {
+            seedScore: Number(seedScore.toFixed(3)),
+            spreadScore: Number(spreadScore.toFixed(3)),
+            hub: Number(hub.toFixed(3)),
+            boost: Number(boost.toFixed(3)),
+            len,
+            hitTerms: v.hitTerms ?? [],
+          },
         };
       })
       .filter((x) => x.score >= threshold && x.seedHits >= minSeedHits)
@@ -349,7 +380,7 @@ export function gate(db, query, opts = {}) {
     );
     const seen = new Set();
     const hits = [];
-    for (const { summaryId, score, seedHits } of scored) {
+    for (const { summaryId, score, seedHits, diag } of scored) {
       if (hits.length >= limit) break;
       const row = detail.get(summaryId);
       if (!row) continue;
@@ -369,6 +400,8 @@ export function gate(db, query, opts = {}) {
         excerpt: String(row.body ?? '').slice(0, 200),
         score: Number(score.toFixed(3)),
         seedHits,
+        // 这条为什么得这个分（联想页「为什么」按钮展开用）
+        diag,
         periodFrom: row.period_from,
         periodTo: row.period_to,
         seqFrom: row.seq_from,
@@ -426,6 +459,20 @@ export function gate(db, query, opts = {}) {
   return remember({
     hits: finalHits,
     seedTerms: seeds.map((s) => s.term),
+    // 诊断：这次查询怎么走的。联想页「为什么」面板用。
+    diag: {
+      query: effectiveQuery,
+      tokens: tokens.length,
+      seeds: seeds.map((s) => ({
+        term: s.term,
+        w: Number(s.w.toFixed(3)),
+        // 每个词在总分里的占比（分母是全部 seed 权重之和）
+        share: Number((s.w / seedDenom).toFixed(3)),
+      })),
+      blocked: blocked.slice(0, 12),
+      total,
+      threshold,
+    },
     stats: {
       total,
       matched: seeds.length,

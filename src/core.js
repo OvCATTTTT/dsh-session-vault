@@ -404,7 +404,7 @@ export class SessionVault {
     if (opts.log !== false) {
       try {
         db.prepare(
-          'INSERT INTO recall_log(session_id, ts, trigger, query, hits, injected, elapsed_ms) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO recall_log(session_id, ts, trigger, query, hits, injected, elapsed_ms, diag) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         ).run(
           opts.sessionId ?? null,
           Date.now(),
@@ -416,6 +416,14 @@ export class SessionVault {
           ),
           result.hits.length > 0 ? 1 : 0,
           result.stats.ms,
+          // 诊断：种子词权重、被挡掉的词、每条命中的分数分解。
+          // 写失败就当没有（老库没这列也不该让检索崩）。
+          JSON.stringify({
+            seeds: result.diag?.seeds ?? [],
+            blocked: result.diag?.blocked ?? [],
+            total: result.diag?.total ?? null,
+            hits: (result.hits ?? []).map((h) => ({ id: h.id, ...(h.diag ?? {}) })),
+          }),
         );
       } catch {
         // 审计写失败不影响检索
@@ -478,7 +486,7 @@ export class SessionVault {
     const lim = Math.max(1, Math.min(1000, Number(limit) || 100));
     return db
       .prepare(
-        `SELECT r.id, r.session_id, r.ts, r.trigger, r.query, r.hits, r.injected, r.elapsed_ms,
+        `SELECT r.id, r.session_id, r.ts, r.trigger, r.query, r.hits, r.injected, r.elapsed_ms, r.diag,
                 s.title AS session_title
          FROM recall_log r
          LEFT JOIN sessions s ON s.id = r.session_id

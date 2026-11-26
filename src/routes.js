@@ -223,6 +223,15 @@ export function registerRoutes(ctx, deps) {
         hits,
         injected: r.injected,
         elapsedMs: r.elapsed_ms,
+        // 这次联想怎么走的：种子词及权重、被挡掉的词、每条命中的分数分解。
+        // 老记录没有这一列 → null，界面显示「早期记录无诊断」。
+        diag: (() => {
+          try {
+            return r.diag ? JSON.parse(r.diag) : null;
+          } catch {
+            return null;
+          }
+        })(),
       };
     });
 
