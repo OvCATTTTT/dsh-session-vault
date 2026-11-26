@@ -28,6 +28,10 @@
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.4"
   },
+  "devDependencies": {
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-home-paths": ">=0.2.1-rc.3 <0.3.0",
     "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0",

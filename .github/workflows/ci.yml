@@ -20,6 +20,16 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
+      # 有个环节依赖正式的 @deepseek-ai/* 包（src/tools.js 用 dsh-tools 的
+      # defineTool），它们声明在 devDependencies 里，必须真的装上，
+      # 否则 node --test 会以 ERR_MODULE_NOT_FOUND 失败。
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
       - name: 单元测试
         run: node --test "test/*.test.js"
 
