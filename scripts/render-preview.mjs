@@ -176,8 +176,8 @@ const recallRows = [
   {
     id: 19, ts: now, trigger: 'auto', query: '新开一个tab',
     hits: [
-      { id: 5060, score: 0.49, title: '开工。先做数据层：标签表 + 读策略支持标签。（续 1）', sessionTitle: '工作区 · 向量记忆库' },
-      { id: 5049, score: 0.42, title: '我想要给你搭建一个向量记忆库以便存储所有的记忆', sessionTitle: '工作区 · 向量记忆库' },
+      { id: 5060, score: 0.49, title: '开工。先做数据层：标签表 + 读策略支持标签。（续 1）', excerpt: '[助手] 开工。先做数据层：标签表 + 读策略支持标签。新增 tags 表，policy 解析支持 tags:a,b 形式。', sessionTitle: '工作区 · 向量记忆库' },
+      { id: 5049, score: 0.42, title: 'dsh plugin --profile desktop add dsh-pet', excerpt: '[助手] 关键词全是路径和英文，三个原因叠在一起：摘要正文里的角色标签、路径、英文标识符都进了词表。', sessionTitle: '工作区 · 向量记忆库' },
     ],
     injected: 1, elapsedMs: 5, sessionTitle: '工作区 · 测试',
     // 「为什么命中」面板的数据（示例数据）

@@ -251,7 +251,7 @@ export function registerRoutes(ctx, deps) {
         const list = [...ids].slice(0, 2000);
         const ph = list.map(() => '?').join(',');
         const found = db.prepare(
-          `SELECT s.id, s.title, s.session_id, se.title AS session_title
+          `SELECT s.id, s.title, s.session_id, s.body, se.title AS session_title
              FROM summaries s
              LEFT JOIN sessions se ON se.id = s.session_id
             WHERE s.id IN (${ph})`,
@@ -259,6 +259,10 @@ export function registerRoutes(ctx, deps) {
         for (const f of found) {
           infoById.set(Number(f.id), {
             title: f.title ?? '',
+            // 正文片段：标题只取「这一轮第一条用户消息的第一行」，经常和本轮主题无关
+            // （实测 78 条被命中的摘要里 24 条标题前 12 字在正文里找不到）。
+            // 联想记录要显示的是「它想到了什么内容」，所以这里带上正文开头。
+            excerpt: String(f.body ?? '').replace(/\s+/g, ' ').trim(),
             sessionTitle: f.session_title ?? '',
             sessionId: f.session_id ?? '',
           });
@@ -273,6 +277,7 @@ export function registerRoutes(ctx, deps) {
             id: h?.id,
             score: h?.score,
             title: info?.title ?? '',
+            excerpt: info?.excerpt ?? '',
             sessionTitle: info?.sessionTitle ?? '',
           };
         });
