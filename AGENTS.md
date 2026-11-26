@@ -62,7 +62,7 @@ node --test "test/*.test.js"     # 全绿才算完
 
 | 路径 | 内容 |
 |---|---|
-| `src/index.js` | 唯一 import `@deepseek-ai/*` 的文件；插件入口、工具与钩子注册 |
+| `src/index.js` | 插件入口、工具与钩子注册；import `schemastery` 与 `dsh-home-paths` |
 | `src/core.js` | `SessionVault` 门面（不依赖 DSH，可脱离宿主单独跑） |
 | `src/db.js` | schema、补列 |
 | `src/datadir.js` | 数据目录解析：显式配置 > 位置指针 > 自动探测（首次探测完写指针固化） |
@@ -74,7 +74,7 @@ node --test "test/*.test.js"     # 全绿才算完
 | `src/routes.js` | 设置页 API（25 条） |
 | `src/surfcore.js` | surfcore 记忆卡的**只读**适配器（不 import 它的模块，自己解析文件） |
 | `src/surfcore-store.js` | surfcore 镜像层（只写自己的 `sc_records` 表） |
-| `src/tools.js` | 模型工具（14 个 `memory_*`） |
+| `src/tools.js` | 模型工具（14 个 `memory_*`）；import `dsh-tools` 的 `defineTool` |
 | `src/ui-data.js` | 设置页数据整形（纯函数，可单测） |
 | `lib/client.js` | 设置页的 React 组件（手写 `h()`，不用 JSX） |
 | `dev/ui.html` | 界面调试用的独立页面（不随包发布） |

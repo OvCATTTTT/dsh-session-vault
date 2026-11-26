@@ -1,6 +1,7 @@
 /**
  * 配置默认值与归一化（纯函数，不依赖 DSH，可单测）。
- * 真正的 schemastery schema 在 src/index.js 里定义 —— 那是唯一 import DSH 包的地方。
+ * 真正的 schemastery schema 在 src/index.js 里定义。import DSH 包的只有 src/index.js
+ * 和 src/tools.js 两个文件。
  */
 
 import { join } from 'node:path';

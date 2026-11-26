@@ -1,7 +1,8 @@
 /**
  * dsh-session-vault —— DSH 插件入口。
  *
- * 这是**唯一** import `@deepseek-ai/*` 的文件；所有业务逻辑在 src/core.js 及其依赖里，
+ * import `@deepseek-ai/*` 的文件一共两个：本文件（`schemastery` / `dsh-home-paths`）和
+ * `src/tools.js`（`dsh-tools` 的 `defineTool`）。所有业务逻辑在 src/core.js 及其依赖里，
  * 可以脱离 DSH 单独运行和测试。
  *
  * 设计原则：

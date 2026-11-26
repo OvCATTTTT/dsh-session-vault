@@ -20,6 +20,10 @@
 - **README 安装说明改正**：这个包没发布到 npm，`dsh plugin add dsh-session-vault` 根本装不上，
   改成从 Releases 下载 `.tgz` 后用 `file:` 前缀安装；同时删掉「首次扫描会把所有历史会话导入」
   这句过时描述（0.3.4 起默认不存不读，扫描只登记、不入库）。
+- **改正「`src/index.js` 是唯一 import `@deepseek-ai/*` 的文件」这句话**（AGENTS.md、`src/index.js`、
+  `src/config.js` 三处都写错了）。实际 `src/tools.js` 也 import `@deepseek-ai/dsh-tools` 的
+  `defineTool`，只是它是 optional peer，本地靠 pnpm 的 auto-install-peers 恰好装上，所以一直没暴露。
+  CI 第一次跑就因此 `ERR_MODULE_NOT_FOUND` —— 错误的文档会直接变成错误的判断。
 
 ---
 
