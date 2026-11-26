@@ -1,0 +1,26 @@
+node_modules/
+dist/
+*.log
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+Thumbs.db
+coverage/
+.tmp/
+tmp/
+
+# asar 调试产物（本地临时）
+asar-dump/
+asar-grep-result.txt
+
+*.tgz
+
+# 本地临时文件（不发布）
+VERSION-REPORT.md
+_base.mjs
+
+# 本地环境
+.env
+.env.*
+*.local

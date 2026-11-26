@@ -1,0 +1,69 @@
+{
+  "name": "dsh-session-vault",
+  "version": "0.5.0",
+  "description": "DeepSeek Harness 会话长期记忆库：关键词 → 摘要 → 原文 三层检索，无遗忘、分会话可存可读、零运行时依赖，带原生设置页（React 插槽组件）。",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./core": "./src/core.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    },
+    "compatibility": {
+      "dsh": ">=0.2.1-rc.2 <0.3.0"
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-home-paths": ">=0.2.1-rc.3 <0.3.0",
+    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.3.0",
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-home-paths": { "optional": true },
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "react": { "optional": true }
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "smoke": "node scripts/smoke.js",
+    "bench": "node scripts/bench.js",
+    "bench:worst": "node scripts/bench-adversarial.js",
+    "dev:ui": "node scripts/dev-ui.js"
+  },
+  "keywords": [
+    "deepseek",
+    "dsh",
+    "plugin",
+    "memory",
+    "sqlite",
+    "fts5",
+    "long-term-memory",
+    "session-archive", "tags", "pin"
+  ],
+  "license": "MIT",
+  "files": [
+    "src",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "AGENTS.md",
+    "docs",
+    "LICENSE"
+  ]
+}

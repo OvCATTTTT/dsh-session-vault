@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # node:sqlite 与 zlib zstd 都需要较新的 Node
+        node: [24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 单元测试
+        run: node --test "test/*.test.js"
+
+      - name: 语法检查（所有源文件可被解析）
+        run: |
+          for f in src/*.js; do node --check "$f"; done

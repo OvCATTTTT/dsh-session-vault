@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>记忆库 · dsh-session-vault</title>
+<style>
+  :root{
+    --bg:#ffffff; --fg:#1c1f23; --fg2:#5c6470; --fg3:#8b929c;
+    --line:#e3e6ea; --line2:#eef0f3; --fill:#f5f6f8;
+    --brand:#1f6feb; --ok:#2fbf71; --err:#e5484d; --warn:#f5a623;
+    --radius:12px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1b1d21; --fg:#e8eaed; --fg2:#a6adb8; --fg3:#7c838d;
+      --line:#2f3338; --line2:#26292e; --fill:#23262b;
+      --brand:#4b8ef7; --ok:#43c882; --err:#ff6b6f; --warn:#ffb020;
+    }
+  }
+  html[data-theme="light"]{ --bg:#fff;--fg:#1c1f23;--fg2:#5c6470;--fg3:#8b929c;--line:#e3e6ea;--line2:#eef0f3;--fill:#f5f6f8; }
+  html[data-theme="dark"]{ --bg:#1b1d21;--fg:#e8eaed;--fg2:#a6adb8;--fg3:#7c838d;--line:#2f3338;--line2:#26292e;--fill:#23262b; }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:16px;background:var(--bg);color:var(--fg);
+    font:13px/20px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  .card{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+  .head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  h1{font-size:15px;font-weight:600;margin:0}
+  .sub{color:var(--fg3);font-size:12px;margin:3px 0 0;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+  .grow{flex:1;min-width:160px}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{padding:5px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;font-size:12px}
+  .tab.on{background:var(--brand);border-color:transparent;color:#fff}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px}
+  .kpi{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .kpi b{display:block;font-size:17px;line-height:24px;font-weight:600;font-variant-numeric:tabular-nums}
+  .kpi span{font-size:11px;color:var(--fg3)}
+  .meter{height:6px;border-radius:999px;background:var(--fill);overflow:hidden;margin-top:10px}
+  .meter i{display:block;height:100%;background:var(--brand);transition:width .25s}
+  .note{font-size:11px;color:var(--fg3);margin:7px 0 0}
+  .btn{font-size:12px;padding:5px 13px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+  .btn.primary{background:var(--brand);border-color:transparent;color:#fff}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .ws{border-top:1px solid var(--line2);padding:10px 0 6px}
+  .ws:first-child{border-top:0;padding-top:0}
+  .wshead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .path{font-family:ui-monospace,Consolas,monospace;font-size:12px;word-break:break-all}
+  .badge{font-size:11px;padding:1px 7px;border-radius:999px;background:var(--fill);color:var(--fg2)}
+  .row{display:flex;align-items:center;gap:8px;padding:5px 0 5px 14px;border-top:1px dashed var(--line2)}
+  .row:first-of-type{border-top:0}
+  .t{flex:1;min-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sid{font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--fg3);min-width:54px;opacity:.8}
+  .more{margin:6px 0 0 14px;font-size:11px;color:var(--brand);background:none;border:0;cursor:pointer;padding:0}
+  .n{font-size:11px;color:var(--fg3);min-width:50px;text-align:right;font-variant-numeric:tabular-nums}
+  .eff{font-size:11px;color:var(--fg2);min-width:76px;text-align:right}
+  select{font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+  .toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+  .sw{width:34px;height:18px;border-radius:999px;background:var(--fill);border:1px solid var(--line);position:relative;transition:background .15s}
+  .sw.on{background:var(--brand);border-color:transparent}
+  .sw i{position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+  .sw.on i{left:18px}
+  .msg{margin:10px 0 0;font-size:12px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .empty{color:var(--fg3);font-size:12px;padding:8px 0}
+  .loading{color:var(--fg3);font-size:12px}
+  .search{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+  .search input{flex:1;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+  .trow{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed var(--line2);font-size:12px}
+  .trow:first-of-type{border-top:0}
+  .tname{font-family:ui-monospace,Consolas,monospace;flex:1;min-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tnum{color:var(--fg3);min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+  .trow.muted .tname{opacity:.45;text-decoration:line-through}
+  .pin{width:56px;font-size:12px;padding:2px 6px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);text-align:right}
+  .btn.sm{font-size:11px;padding:2px 9px}
+  .field{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .field input{flex:1;min-width:220px;font-size:12px;padding:5px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+  .warn{color:var(--warn);font-size:12px;margin-top:6px}
+  .kv{font-size:12px;margin-top:6px;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="loading">加载中…</div></div>
+<script>
+(function () {
+  'use strict';
+  var API = '/dsh-session-vault/api';
+  var STORE_OPTS = [['inherit','继承'],['store','存'],['skip','不存']];
+  var READ_OPTS  = [['inherit','继承'],['off','关'],['own','仅本会话'],['all','全库']];
+  var WS_STORE   = [['store','存'],['skip','不存']];
+  var WS_READ    = [['off','关'],['own','仅本会话'],['all','全库']];
+
+  var state = { tab: 'overview', overview: null, sessions: null, terms: null, termQ: '',
+    busy: false, msg: null, expanded: {}, ops: null, migrateTo: '', poll: null };
+
+  // 允许 ?theme=dark 强制主题、?tab=sessions 直达标签页（截图 / 深链用）
+  var q = new URLSearchParams(location.search);
+  if (q.get('theme')) document.documentElement.setAttribute('data-theme', q.get('theme'));
+  var TABS = ['overview', 'sessions', 'terms', 'ops'];
+  if (TABS.indexOf(q.get('tab')) >= 0) state.tab = q.get('tab');
+
+  function fmt(n){ return Number(n||0).toLocaleString('zh-CN'); }
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = String(text);
+    return e;
+  }
+  function api(path, body){
+    var opt = { method: body ? 'POST' : 'GET' };
+    if (body) { opt.headers = {'content-type':'application/json'}; opt.body = JSON.stringify(body); }
+    return fetch(API + path, opt).then(function (r) {
+      return r.json().catch(function(){ return {}; }).then(function (d) {
+        if (!r.ok || d.ok === false) throw new Error(d.error || ('HTTP ' + r.status));
+        return d.data;
+      });
+    });
+  }
+
+  function setMsg(kind, text){ state.msg = { kind: kind, text: text }; render(); }
+
+  function withBusy(fn){
+    state.busy = true; render();
+    return Promise.resolve().then(fn).then(function(){
+      state.busy = false; render();
+    }).catch(function(e){
+      state.busy = false; setMsg('err', e.message || String(e));
+    });
+  }
+
+  function loadAll(){
+    return Promise.all([api('/overview'), api('/sessions')]).then(function (r) {
+      state.overview = r[0]; state.sessions = r[1]; render();
+    }).catch(function (e) { setMsg('err', e.message || String(e)); });
+  }
+
+  // ── 概览 ────────────────────────────────────────────────────────────────
+  function renderOverview(){
+    var d = state.overview;
+    if (!d) return el('div', 'card loading', '加载中…');
+
+    var out = [];
+
+    // 扫描进行中：显示进度（首次导入 64 个会话可能要十几秒）
+    var sp = d.scanProgress;
+    if (sp && sp.running) {
+      var pc = el('div', 'card');
+      var pct = sp.total ? Math.round(sp.done / sp.total * 100) : 0;
+      pc.appendChild(el('h1', null, sp.phase === 'index' ? '正在建立索引…' : '正在导入会话…'));
+      pc.appendChild(el('p', 'note',
+        `${sp.done}/${sp.total} 个文件 · 已入库 ${fmt(sp.newEvents)} 条事件、${fmt(sp.newSummaries)} 条摘要`));
+      var m = el('div', 'meter');
+      var b = el('i'); b.style.width = Math.max(2, pct) + '%';
+      m.appendChild(b); pc.appendChild(m);
+      out.push(pc);
+      schedulePoll();
+    }
+
+    var card = el('div', 'card');
+    var head = el('div', 'head');
+    var left = el('div', 'grow');
+    left.appendChild(el('h1', null, '记忆库'));
+    left.appendChild(el('p', 'sub', d.dataDir || '（未配置数据目录）'));
+    head.appendChild(left);
+    var scanBtn = el('button', 'btn primary', state.busy ? '扫描中…' : '立即扫描');
+    scanBtn.disabled = !!state.busy;
+    scanBtn.onclick = function () {
+      withBusy(function(){
+        return api('/scan', {}).then(function (r) {
+          return loadAll().then(function(){
+            setMsg('ok', '扫描完成：新增 ' + fmt(r.newEvents) + ' 条事件、' + fmt(r.newSummaries) + ' 条摘要（' + r.ms + 'ms）');
+          });
+        });
+      });
+    };
+    head.appendChild(scanBtn);
+    card.appendChild(head);
+
+    var kpis = el('div', 'kpis');
+    [['会话', fmt(d.sessions)], ['事件', fmt(d.events)], ['摘要', fmt(d.summaries)],
+     ['关键词', fmt(d.activeTerms)], ['共现边', fmt(d.edges)], ['库体积', d.sizeMB + ' MB']
+    ].forEach(function (p) {
+      var k = el('div', 'kpi');
+      k.appendChild(el('b', null, p[1]));
+      k.appendChild(el('span', null, p[0]));
+      kpis.appendChild(k);
+    });
+    card.appendChild(kpis);
+
+    var meter = el('div', 'meter');
+    var bar = el('i');
+    bar.style.width = Math.max(2, Math.min(100, Math.round(d.sizeMB / 500 * 100))) + '%';
+    meter.appendChild(bar);
+    card.appendChild(meter);
+    card.appendChild(el('p', 'note',
+      '最近一条事件：' + (d.latestEventAt ? new Date(d.latestEventAt).toISOString().slice(0,10) : '—') +
+      ' · 累计召回 ' + fmt(d.recalls) + ' 次' +
+      (d.lastScan ? ' · 上次扫描 ' + d.lastScan.ms + 'ms 新增 ' + fmt(d.lastScan.newEvents) + ' 条' : '')));
+
+    var auto = (d.switches || []).filter(function(s){ return s.name === 'autoHint'; })[0];
+    if (auto) {
+      var box = el('div'); box.style.marginTop = '14px';
+      var lab = el('label', 'toggle');
+      var sw = el('div', 'sw' + (auto.on ? ' on' : ''));
+      sw.appendChild(el('i'));
+      lab.appendChild(sw);
+      lab.appendChild(el('span', null, '主动联想：' + (auto.on ? '开' : '关')));
+      lab.onclick = function () {
+        withBusy(function(){
+          return api('/switch', { name: 'autoHint', on: !auto.on })
+            .then(loadAll)
+            .then(function(){ setMsg('ok', '主动联想已' + (auto.on ? '关闭' : '打开')); });
+        });
+      };
+      box.appendChild(lab);
+      box.appendChild(el('p', 'note', '开：每轮自动检测相关记忆并注入一行提示。关：不再自动打扰，但 memory_recall 仍可手动查。'));
+      card.appendChild(box);
+    }
+    out.push(card);
+    return out;
+  }
+
+  /** 扫描进行中时轮询概览，让进度条动起来。 */
+  function schedulePoll(){
+    if (state.poll) return;
+    var sp = state.overview && state.overview.scanProgress;
+    if (!sp || !sp.running) return;
+    state.poll = setTimeout(function () {
+      state.poll = null;
+      api('/overview').then(function (d) {
+        state.overview = d;
+        render();
+        if (d.scanProgress && d.scanProgress.running) schedulePoll();
+        else loadAll();
+      }).catch(function () { /* 轮询失败就停 */ });
+    }, 1500);
+  }
+
+  function renderKinds(){
+    var d = state.overview;
+    if (!d) return el('div');
+    var card = el('div', 'card');
+    card.appendChild(el('h1', null, '事件构成'));
+    var list = (d.byKind || []).map(function(k){ return k.kind + ' ' + fmt(k.n); }).join(' · ');
+    card.appendChild(el('p', 'note', list || '暂无'));
+    return card;
+  }
+
+  // ── 会话 ────────────────────────────────────────────────────────────────
+  function renderSessions(){
+    var d = state.sessions;
+    if (!d) return [el('div', 'card loading', '加载中…')];
+    var groups = d.groups || [];
+    var sum = d.summary || {};
+
+    var head = el('div', 'card');
+    var kpis = el('div', 'kpis');
+    [['工作区', fmt(sum.workspaces)], ['会话总数', fmt(sum.total)],
+     ['正在记录', fmt(sum.storing)], ['可读记忆', fmt(sum.reading)]
+    ].forEach(function (p) {
+      var k = el('div', 'kpi');
+      k.appendChild(el('b', null, p[1]));
+      k.appendChild(el('span', null, p[0]));
+      kpis.appendChild(k);
+    });
+    head.appendChild(kpis);
+    head.appendChild(el('p', 'note', '「存」控制这个会话的话要不要进库；「读」控制这个会话能查哪些记忆。两者互相独立。'));
+    var out = [head];
+
+    if (!groups.length) {
+      var empty = el('div', 'card');
+      empty.appendChild(el('div', 'empty', '还没有任何会话。点「概览」里的「立即扫描」把历史会话导入。'));
+      out.push(empty);
+      return out;
+    }
+
+    var table = el('div', 'card');
+    groups.forEach(function (g) {
+      var ws = el('div', 'ws');
+      var wsHead = el('div', 'wshead');
+      wsHead.appendChild(el('span', 'path', g.workspace));
+      wsHead.appendChild(el('span', 'badge', '默认'));
+      wsHead.appendChild(makeLabel('存'));
+      wsHead.appendChild(makeSel(g.storeDefault, WS_STORE, function (v) {
+        changePolicy({ workspace: g.workspace, storeDefault: v });
+      }));
+      wsHead.appendChild(makeLabel('读'));
+      wsHead.appendChild(makeSel(g.readDefault, WS_READ, function (v) {
+        changePolicy({ workspace: g.workspace, readDefault: v });
+      }));
+      ws.appendChild(wsHead);
+
+      // 默认只显示前 8 条：一个工作区可能有 30+ 会话，全铺开会把页面拉得很长
+      var COLLAPSE_AT = 8;
+      var expanded = !!state.expanded[g.workspace];
+      var list = expanded ? g.sessions : g.sessions.slice(0, COLLAPSE_AT);
+
+      list.forEach(function (s) {
+        var row = el('div', 'row');
+        var t = el('span', 't', s.title);
+        t.title = s.id + '\n' + s.title;
+        row.appendChild(t);
+        row.appendChild(el('span', 'sid', s.shortId || ''));
+        row.appendChild(el('span', 'n', fmt(s.events)));
+        row.appendChild(makeSel(s.storeMode, STORE_OPTS, function (v) {
+          changePolicy({ sessionId: s.id, storeMode: v });
+        }));
+        row.appendChild(makeSel(s.readMode, READ_OPTS, function (v) {
+          changePolicy({ sessionId: s.id, readMode: v });
+        }));
+        var eff = el('span', 'eff', (s.effStore === 'store' ? '存' : '不存') + '/' + s.effRead);
+        eff.title = '生效值（来自 ' + s.resolvedFrom + '）';
+        row.appendChild(eff);
+        ws.appendChild(row);
+      });
+
+      if (g.sessions.length > COLLAPSE_AT) {
+        var more = el('button', 'more', expanded
+          ? '收起'
+          : '展开其余 ' + (g.sessions.length - COLLAPSE_AT) + ' 条（共 ' + g.sessions.length + '）');
+        more.onclick = function () {
+          state.expanded[g.workspace] = !expanded;
+          render();
+        };
+        ws.appendChild(more);
+      }
+      table.appendChild(ws);
+    });
+    out.push(table);
+    return out;
+  }
+
+  function makeLabel(text){ return smallText(text); }
+  function smallText(text){ var e = el('span', 'note', text); e.style.margin = '0'; return e; }
+
+  function makeSel(value, opts, onChange){
+    var s = document.createElement('select');
+    s.disabled = !!state.busy;
+    opts.forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0]; op.textContent = o[1];
+      if (o[0] === value) op.selected = true;
+      s.appendChild(op);
+    });
+    s.onchange = function () { onChange(s.value); };
+    return s;
+  }
+
+  function changePolicy(body){
+    withBusy(function(){
+      return api('/policy', body).then(loadAll).then(function(){ setMsg('ok', '策略已更新'); });
+    });
+  }
+
+  // ── 关键词 ──────────────────────────────────────────────────────────────
+  function loadTerms(){
+    return api('/terms?q=' + encodeURIComponent(state.termQ) + '&limit=200')
+      .then(function (d) { state.terms = d; render(); })
+      .catch(function (e) { setMsg('err', e.message || String(e)); });
+  }
+
+  function renderTerms(){
+    var d = state.terms;
+    var out = [];
+
+    var head = el('div', 'card');
+    var bar = el('div', 'search');
+    var input = document.createElement('input');
+    input.type = 'search';
+    input.placeholder = '搜索关键词（例如 ACL、项目、延期）';
+    input.value = state.termQ;
+    input.onkeydown = function (e) { if (e.key === 'Enter') { state.termQ = input.value; loadTerms(); } };
+    var go = el('button', 'btn', '搜索');
+    go.onclick = function () { state.termQ = input.value; loadTerms(); };
+    var clear = el('button', 'btn', '清空');
+    clear.onclick = function () { state.termQ = ''; input.value = ''; loadTerms(); };
+    bar.appendChild(input); bar.appendChild(go); bar.appendChild(clear);
+    head.appendChild(bar);
+
+    // 高频词（连接度很高）几乎都是噪声：tool-result / content / 助手 / 路径前缀……
+    // 它们会让联想扩散跑偏，给一个一键屏蔽入口。
+    var noisy = (d && d.rows ? d.rows : []).filter(function (r) {
+      return !r.muted && r.degree >= 500;
+    }).slice(0, 50);
+    if (noisy.length) {
+      var nb = el('button', 'btn', '屏蔽高频噪声词（' + noisy.length + '）');
+      nb.onclick = function () { muteAll(noisy); };
+      nb.disabled = !!state.busy;
+      var nw = el('div', 'field'); nw.appendChild(nb);
+      nw.appendChild(el('span', 'note', '连接度 ≥ 500 的词，通常是工具名或路径前缀，屏蔽后联想更准。'));
+      head.appendChild(nw);
+    }
+
+    var tr = d ? d.rows.length : 0;
+    head.appendChild(el('p', 'note',
+      '关键词由摘要自动挖掘。屏蔽（mute）后不参与联想；加权（pin）会覆盖默认 idf 权重，数字越大越优先。'
+      + (d ? '  当前 ' + tr + ' 个' + (state.termQ ? '（搜索：' + state.termQ + '）' : '') : '')));
+    out.push(head);
+
+    var card = el('div', 'card');
+    if (!d) {
+      card.appendChild(el('div', 'loading', '加载中…'));
+    } else if (!d.rows.length) {
+      card.appendChild(el('div', 'empty', state.termQ ? '没有匹配的关键词。' : '关键词库还是空的，先扫描一次。'));
+    } else {
+      d.rows.forEach(function (t) {
+        var row = el('div', 'trow' + (t.muted ? ' muted' : ''));
+        row.appendChild(el('span', 'tname', t.term));
+        row.appendChild(el('span', 'tnum', 'df ' + t.df));
+        row.appendChild(el('span', 'tnum', '连 ' + t.degree));
+
+        var pin = document.createElement('input');
+        pin.type = 'number';
+        pin.className = 'pin';
+        pin.placeholder = '权重';
+        pin.value = (t.pinned == null ? '' : t.pinned);
+        pin.onchange = function () {
+          var v = pin.value.trim() === '' ? -1 : Number(pin.value);
+          patchTerm(t.term, { pinned: v });
+        };
+        row.appendChild(pin);
+
+        var mb = el('button', 'btn sm', t.muted ? '恢复' : '屏蔽');
+        mb.onclick = function () { patchTerm(t.term, { muted: !t.muted }); };
+        row.appendChild(mb);
+        card.appendChild(row);
+      });
+    }
+    out.push(card);
+    return out;
+  }
+
+  function patchTerm(term, patch){
+    withBusy(function(){
+      return api('/term', { term: term, muted: patch.muted, pinned: patch.pinned })
+        .then(loadTerms)
+        .then(function(){ setMsg('ok', '已更新「' + term + '」'); });
+    });
+  }
+
+  /** 批量屏蔽（顺序执行，避免把宿主打满）。 */
+  function muteAll(list){
+    withBusy(function(){
+      return list.reduce(function (p, r) {
+        return p.then(function () { return api('/term', { term: r.term, muted: true }); });
+      }, Promise.resolve())
+        .then(loadTerms)
+        .then(function(){ setMsg('ok', '已屏蔽 ' + list.length + ' 个高频噪声词'); });
+    });
+  }
+
+  // ── 运维 ────────────────────────────────────────────────────────────────
+  function renderOps(){
+    var d = state.overview;
+    var out = [];
+
+    // 数据目录与迁移
+    var c1 = el('div', 'card');
+    c1.appendChild(el('h1', null, '数据目录'));
+    c1.appendChild(el('p', 'sub', d ? d.dataDir : '…'));
+
+    var f = el('div', 'field');
+    var ti = document.createElement('input');
+    ti.type = 'text';
+    ti.placeholder = '新的数据目录绝对路径，例如 D:\\DSH\\session-vault';
+    ti.value = state.migrateTo;
+    ti.oninput = function () { state.migrateTo = ti.value; };
+    f.appendChild(ti);
+    var mb = el('button', 'btn', '迁移');
+    mb.disabled = !!state.busy || !state.migrateTo.trim();
+    mb.onclick = function () { doMigrate(ti.value.trim()); };
+    f.appendChild(mb);
+    c1.appendChild(f);
+    c1.appendChild(el('p', 'warn',
+      '迁移会复制整个目录并逐表校验行数，校验通过才切换；失败自动回滚。'
+      + '迁移后需要把插件配置里的 dataDir 改成新路径，否则下次启动会回到旧目录。'));
+    out.push(c1);
+
+    // 重建索引
+    var c2 = el('div', 'card');
+    c2.appendChild(el('h1', null, '重建关键词索引'));
+    c2.appendChild(el('p', 'note',
+      '清空关键词库与共现边，从摘要在内存里重新抽取一遍。不会动原文和摘要。'
+      + '改过 termMinDf / minEdgeHits 之后跑一次即可生效。'));
+    var rb = el('button', 'btn', '开始重建');
+    rb.disabled = !!state.busy;
+    rb.onclick = function () { doRebuild(); };
+    var rbWrap = el('div', 'field'); rbWrap.appendChild(rb);
+    c2.appendChild(rbWrap);
+    out.push(c2);
+
+    // 导出
+    var c3 = el('div', 'card');
+    c3.appendChild(el('h1', null, '导出'));
+    c3.appendChild(el('p', 'note', '把会话 / 摘要 / 原文导成一个 JSONL 文件，放在数据目录下。可用于备份或迁移到别处。'));
+    var eb = el('button', 'btn', '导出 JSONL');
+    eb.disabled = !!state.busy;
+    eb.onclick = function () { doExport(); };
+    var ebWrap = el('div', 'field'); ebWrap.appendChild(eb);
+    c3.appendChild(ebWrap);
+    out.push(c3);
+
+    // 上次操作结果
+    if (state.ops) {
+      var c4 = el('div', 'card');
+      c4.appendChild(el('h1', null, '上次操作结果'));
+      c4.appendChild(el('div', 'kv', state.ops));
+      out.push(c4);
+    }
+    return out;
+  }
+
+  function doMigrate(to){
+    if (!window.confirm('确定把整个数据目录迁移到：\n' + to + '\n\n会先复制并校验，失败自动回滚。')) return;
+    withBusy(function(){
+      return api('/migrate', { to: to, confirm: true })
+        .then(function (r) {
+          state.ops = '迁移完成 → ' + r.dataDir + '\n文件：' + (r.copied || []).join(', ')
+            + '\n旧目录' + (r.deletedOld ? '已删除' : '保留（确认无误后可手动删）')
+            + '\n提醒：' + r.note;
+          return loadAll();
+        })
+        .then(function(){ setMsg('ok', '迁移完成'); });
+    });
+  }
+
+  function doRebuild(){
+    if (!window.confirm('重建关键词索引？\n原文和摘要不受影响，但词库会按当前配置重算（可能需要几秒）。')) return;
+    withBusy(function(){
+      return api('/rebuild', {})
+        .then(function (r) {
+          state.ops = '重建完成：' + r.summaries + ' 条摘要 → ' + r.terms + ' 个关键词、'
+            + r.edges + ' 条边（剪掉 ' + r.pruned + ' 个低频道词），耗时 ' + r.ms + 'ms';
+          return loadAll();
+        })
+        .then(function(){ setMsg('ok', '索引已重建'); });
+    });
+  }
+
+  function doExport(){
+    withBusy(function(){
+      return api('/export', {})
+        .then(function (r) {
+          state.ops = '已导出 ' + r.file + '\n会话 ' + r.sessions + ' · 摘要 ' + r.summaries
+            + ' · 原文 ' + r.events + ' · ' + Math.round(r.bytes / 1024) + ' KB';
+        })
+        .then(function(){ setMsg('ok', '导出完成'); });
+    });
+  }
+
+  // ── 主渲染 ──────────────────────────────────────────────────────────────
+  function render(){
+    var app = document.getElementById('app');
+    app.innerHTML = '';
+
+    var tabs = el('div', 'tabs');
+    [['overview','概览'],['sessions','会话'],['terms','关键词'],['ops','运维']].forEach(function (t) {
+      var b = el('button', 'tab' + (state.tab === t[0] ? ' on' : ''), t[1]);
+      b.onclick = function () {
+        state.tab = t[0];
+        render();
+        // 关键词页懒加载
+        if (t[0] === 'terms' && !state.terms) loadTerms();
+      };
+      tabs.appendChild(b);
+    });
+    app.appendChild(tabs);
+
+    function appendNodes(nodes) {
+      if (!Array.isArray(nodes)) nodes = [nodes];
+      nodes.forEach(function (n) { if (n) app.appendChild(n); });
+    }
+
+    if (state.tab === 'overview') {
+      appendNodes(renderOverview());
+      app.appendChild(renderKinds());
+    } else if (state.tab === 'sessions') {
+      try {
+        appendNodes(renderSessions());
+      } catch (e) {
+        var errCard = el('div', 'card');
+        errCard.appendChild(el('div', 'msg err', '渲染会话列表出错：' + (e && e.message ? e.message : e)));
+        app.appendChild(errCard);
+      }
+    } else if (state.tab === 'terms') {
+      appendNodes(renderTerms());
+    } else {
+      appendNodes(renderOps());
+    }
+
+    if (state.msg) app.appendChild(el('p', 'msg ' + state.msg.kind, state.msg.text));
+  }
+
+  render();
+  loadAll();
+  if (state.tab === 'terms') loadTerms();
+
+  // 上报高度给父窗口（设置页里的 iframe 靠这个自适应）
+  function reportHeight() {
+    try {
+      var h = Math.max(
+        document.documentElement.scrollHeight || 0,
+        document.body ? document.body.scrollHeight : 0
+      );
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'session-vault:height', height: h }, window.location.origin);
+      }
+    } catch (e) { /* 独立打开时没有父窗口，忽略 */ }
+  }
+  window.addEventListener('load', reportHeight);
+  window.addEventListener('resize', reportHeight);
+  if (window.ResizeObserver && document.body) {
+    new ResizeObserver(reportHeight).observe(document.body);
+  }
+  setTimeout(reportHeight, 300);
+})();
+</script>
+</body>
+</html>

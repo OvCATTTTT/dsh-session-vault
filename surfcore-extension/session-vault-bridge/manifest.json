@@ -1,0 +1,12 @@
+{
+  "id": "session-vault-bridge",
+  "name": "记忆库投递（dsh-session-vault）",
+  "version": "0.1.0",
+  "description": "把 surfcore 记忆卡的全量归档投递给 dsh-session-vault 的 spool 投递箱。默认关闭；只追加、按偏移增量、带内容哈希幂等。",
+  "entry": "index.js",
+  "enabled": false,
+  "capabilities": ["actions"],
+  "platforms": ["qq"],
+  "author": "dsh-session-vault",
+  "requiresRestart": false
+}
